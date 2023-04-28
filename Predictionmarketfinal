@@ -1,0 +1,51 @@
+pragma solidity 0.8.0;
+
+contract PredictionMarket {
+    address public token;
+    address public oracle;
+    uint public totalTokens;
+    uint public totalPayout;
+    uint public winnerIndex;
+    uint public deadline;
+
+    struct Prediction {
+        string candidateName;
+        uint tokenAmount;
+        bool redeemed;
+    }
+
+    Prediction[] public predictions;
+
+    mapping(address => uint) public balances;
+
+    constructor(address _token, address _oracle, uint _totalTokens, uint _totalPayout, uint _deadline) {
+        token = _token;
+        oracle = _oracle;
+        totalTokens = _totalTokens;
+        totalPayout = _totalPayout;
+        deadline = _deadline;
+    }
+
+    function makePrediction(string memory _candidateName, uint _tokenAmount) public {
+        require(block.timestamp < deadline);
+        require(Token(token).transferFrom(msg.sender, address(this), _tokenAmount));
+        predictions.push(Prediction(_candidateName, _tokenAmount, false));
+    }
+
+    function redeemRewards(uint _predictionIndex) public {
+        require(block.timestamp > deadline);
+        require(!predictions[_predictionIndex].redeemed);
+        string memory winner = Oracle(oracle).getWinner();
+        require(keccak256(bytes(predictions[_predictionIndex].candidateName)) == keccak256(bytes(winner)));
+        predictions[_predictionIndex].redeemed = true;
+        uint reward = (predictions[_predictionIndex].tokenAmount * totalPayout) / totalTokens;
+        balances[msg.sender] += reward;
+        Token(token).transfer(msg.sender, reward);
+    }
+
+    function withdrawTokens() public {
+        require(balances[msg.sender] > 0);
+        Token(token).transfer(msg.sender, balances[msg.sender]);
+        balances[msg.sender] = 0;
+    }
+}
