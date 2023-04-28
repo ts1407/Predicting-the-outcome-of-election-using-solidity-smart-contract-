@@ -1,0 +1,46 @@
+pragma solidity 0.8.0;
+
+import "./Token.sol";
+import "./Oracle.sol";
+
+contract PredictionMarket {
+    Token public token;
+    Oracle public oracle;
+
+    struct Prediction {
+        address participant;
+        uint amount;
+        string candidate;
+        bool redeemed;
+    }
+
+    Prediction[] public predictions;
+
+    mapping(address => uint) public balances;
+
+    constructor(Token _token, Oracle _oracle) {
+        token = _token;
+        oracle = _oracle;
+    }
+
+    function makePrediction(string memory _candidate, uint _amount) public {
+        require(token.balanceOf(msg.sender) >= _amount);
+        token.transferFrom(msg.sender, address(this), _amount);
+        predictions.push(Prediction(msg.sender, _amount, _candidate, false));
+    }
+
+    function redeemRewards(uint _index) public {
+        require(oracle.getWinner() == predictions[_index].candidate && !predictions[_index].redeemed);
+        uint reward = predictions[_index].amount * token.getPayout();
+        balances[predictions[_index].participant] += reward;
+        token.transfer(predictions[_index].participant, reward);
+        predictions[_index].redeemed = true;
+    }
+
+    function withdrawTokens() public {
+        require(balances[msg.sender] > 0);
+        uint amount = balances[msg.sender];
+        balances[msg.sender] = 0;
+        token.transfer(msg.sender, amount);
+    }
+}
